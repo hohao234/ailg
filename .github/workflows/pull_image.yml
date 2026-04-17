@@ -1,0 +1,26 @@
+name: Docker Image Downloader
+
+on:
+  workflow_dispatch: # 支持手动点击运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull Docker Image
+        run: |
+          docker pull ailg/g-box:hostmode
+          # 将镜像保存为 tar 文件
+          docker save ailg/g-box:hostmode -o g-box-hostmode.tar
+
+      - name: Compress Image
+        run: |
+          # 压缩一下，减小体积，加快下载速度
+          gzip g-box-hostmode.tar
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: g-box-image-amd64
+          path: g-box-hostmode.tar.gz
+          retention-days: 1 # 节省空间，只保留1天
