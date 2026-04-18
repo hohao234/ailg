@@ -39,36 +39,33 @@ jobs:
 
       - name: Download and Patch Script
         run: |
-          # 1. 下载全套脚本
+          # 1. 下载全套
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
 
-          # 2. 彻底清除 BOM（使用一种更鲁棒的方式）
+          # 2. 彻底清除 BOM
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
           
-          # 3. 注入镜像地址和强制 SHA
+          # 3. 在脚本最开头（export PATH 之后）注入“强制就位”逻辑
+          # 这行代码的作用是：只要你运行 my_install.sh，它会自动把自己身边的配套脚本复制到 /tmp
+          FIX_PATH="cp ./xy_utils.sh /tmp/xy_utils.sh 2>/dev/null; cp ./xy_sync.sh /tmp/xy_sync.sh 2>/dev/null"
+          sed -i "/export PATH/a $FIX_PATH" my_install.sh
+          
+          # 4. 注入镜像和 SHA（不换行注入，确保不破坏 line 3165 的结构）
           MY_IMAGE="ghcr.io/${{ github.repository }}/g-box:hostmode"
           MY_SHA="${{ env.CURRENT_SHA }}"
-          
-          # 直接修改脚本内部的镜像定义
           sed -i "s|ailg/g-box:hostmode|$MY_IMAGE|g" my_install.sh
-          
-          # 【核心改进】不再在中间插入代码，而是在脚本的前几行注入“锁死”变量
-          # 我们把变量注入在 PATH 定义的后面，那是脚本最安全的地方
           sed -i "/export PATH/a remote_sha=\"$MY_SHA\"\nlocal_sha=\"$MY_SHA\"" my_install.sh
           
-          # 4. 屏蔽脚本自带的下载/更新逻辑
+          # 5. 屏蔽掉脚本自带的拉取和更新检测
           sed -i 's/docker pull/true #/g' my_install.sh
           sed -i 's/download_file /true #/g' my_install.sh
-          
-          # 5. 替换下载源为你的库
-          sed -i "s|https://ailg.ggbond.org/|https://raw.githubusercontent.com/${{ github.repository }}/main/|g" my_install.sh
 
       - name: Commit Updated Script
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add my_install.sh xy_utils.sh xy_sync.sh
-          git commit -m "✅ 结构保护版补丁 SHA: ${{ env.CURRENT_SHA }}" || exit 0
+          git commit -m "🚀 修复路径指向与 SHA 对齐" || exit 0
           git push
