@@ -2,7 +2,7 @@ name: Sync to GHCR and Patch
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # 每6小时自动运行
+    - cron: '0 */3 * * *' # 每 3 小时自动运行一次
   workflow_dispatch:      # 支持手动触发
 
 jobs:
@@ -26,16 +26,23 @@ jobs:
       - name: Pull and Push Image
         run: |
           docker pull ailg/g-box:hostmode
+          # 获取拉取到的镜像真实 Digest (指纹)
+          IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ailg/g-box:hostmode | cut -d'@' -f2)
+          echo "最新镜像指纹: $IMAGE_DIGEST"
+          # 将指纹写入文件，供 NAS 远程对比
+          echo "$IMAGE_DIGEST" > version.txt
+          
           docker tag ailg/g-box:hostmode ghcr.io/${{ github.repository }}/g-box:hostmode
           docker push ghcr.io/${{ github.repository }}/g-box:hostmode
 
       - name: Download and Prepare Scripts
         run: |
+          # 建议从原作者地址下载最新脚本
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
           
-          # 基础净化
+          # 基础净化 (处理 BOM 头和换行符)
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
           sed -i 's/\r//g' *.sh
 
@@ -43,6 +50,7 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add *.sh
-          git commit -m "🚀 同步镜像并更新脚本资源" || exit 0
+          # 将脚本和版本指纹文件一并提交
+          git add *.sh version.txt
+          git commit -m "🚀 同步镜像指纹: $(cat version.txt)" || exit 0
           git push
