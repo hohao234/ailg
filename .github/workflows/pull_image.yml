@@ -39,20 +39,22 @@ jobs:
 
       - name: Download All Related Scripts
         run: |
-          # 抓取原作者全家桶
-          curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
+          # 1. 下载原作者所有核心脚本，不改名
+          curl -sL https://ailg.ggbond.org/xy_ailg.sh -o xy_ailg.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
           
-          # 净化所有下载的脚本
+          # 2. 下载导航资源包
+          curl -sL https://ailg.ggbond.org/sun-panel.tar.gz -o sun-panel.tar.gz
+          
+          # 3. 基础净化
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
           sed -i 's/\r//g' *.sh
 
       - name: Commit and Push
         run: |
-          git config --local user.email "github-actions@bot.com"
+          git config --local user.email "action@github.com"
           git config --local user.name "ActionBot"
-          # 确保 version.txt 和所有 .sh 都在提交列表中
-          git add version.txt *.sh
-          git commit -m "🚀 完整脚本与镜像同步: $(cat version.txt)" || exit 0
+          git add .
+          git commit -m "🚀 全量同步资源: $(date)" || exit 0
           git push
