@@ -39,15 +39,20 @@ jobs:
 
       - name: Download All Related Scripts
         run: |
-          # 1. 下载原作者所有核心脚本，不改名
-          curl -sL https://ailg.ggbond.org/xy_ailg.sh -o xy_ailg.sh
-          curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
-          curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
+          # 定义下载地址（如果这个地址失效，请替换为作者最新的有效地址）
+          BASE_URL="https://ailg.ggbond.org"
           
-          # 2. 下载导航资源包
-          curl -sL https://ailg.ggbond.org/sun-panel.tar.gz -o sun-panel.tar.gz
+          curl -sL ${BASE_URL}/xy_ailg.sh -o xy_ailg.sh
+          curl -sL ${BASE_URL}/xy_utils.sh -o xy_utils.sh
+          curl -sL ${BASE_URL}/xy_sync.sh -o xy_sync.sh
+          curl -sL ${BASE_URL}/sun-panel.tar.gz -o sun-panel.tar.gz
           
-          # 3. 基础净化
+          # 检查文件内容是否包含 404 或 html 标签
+          if grep -q "<!DOCTYPE html>" xy_ailg.sh || [ ! -s xy_ailg.sh ]; then
+            echo "❌ 下载失败：获取到的是错误页面或空文件"
+            exit 1
+          fi
+          
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
           sed -i 's/\r//g' *.sh
 
