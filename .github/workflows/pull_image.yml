@@ -39,23 +39,32 @@ jobs:
 
       - name: Download and Patch Script
         run: |
-          # 4. 下载主脚本
+          # 1. 下载原版主脚本和所有依赖工具脚本
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
+          curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
+          curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
           
-          # 5. 修改脚本：替换镜像源为你的 GHCR 完整路径
+          # 2. 移除 BOM 隐藏字符并修复首行
+          sed -i '1s/^\xEF\xBB\xBF//' my_install.sh
+          sed -i '1c #!/bin/bash' my_install.sh
+          
+          # 3. 强制修改镜像源和注入 SHA
           sed -i "s|ailg/g-box:hostmode|ghcr.io/${{ github.repository }}/g-box:hostmode|g" my_install.sh
-          
-          # 6. 注入 SHA：确保 local_sha 逻辑与镜像完全对齐
           sed -i "2i remote_sha=\"${{ env.CURRENT_SHA }}\"" my_install.sh
           sed -i "3i local_sha=\"${{ env.CURRENT_SHA }}\"" my_install.sh
           
-          # 7. 屏蔽自带 pull
-          sed -i 's/docker pull/echo skip pull #/g' my_install.sh
+          # 4. 暴力屏蔽：直接把脚本里的 docker pull 换成 true
+          sed -i 's/docker pull/true #/g' my_install.sh
+          
+          # 5. 核心修复：修改脚本下载逻辑，让它从你的 GitHub 库下载配套脚本，而不是去原作者那下
+          # 这样能保证所有脚本都在你的控制之下，且不会报文件不存在
+          sed -i "s|https://ailg.ggbond.org/|https://raw.githubusercontent.com/${{ github.repository }}/main/|g" my_install.sh
 
       - name: Commit Updated Script
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add my_install.sh
-          git commit -m "🔄 同步 g-box 镜像并对齐 SHA: ${{ env.CURRENT_SHA }}" || exit 0
+          # 提交所有脚本：主脚本和配套工具
+          git add my_install.sh xy_utils.sh xy_sync.sh
+          git commit -m "🔄 同步镜像并全套修补脚本 SHA: ${{ env.CURRENT_SHA }}" || exit 0
           git push
