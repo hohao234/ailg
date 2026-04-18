@@ -44,26 +44,26 @@ jobs:
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
 
-          # 2. 彻底移除 BOM 并修复首行（使用 printf 确保干净）
-          printf "#!/bin/bash\n" > clean_install.sh
-          tail -n +2 my_install.sh >> clean_install.sh
-          mv clean_install.sh my_install.sh
-
-          # 3. 注入镜像地址和 SHA (在脚本开头安全位置注入)
-          # 注意：这里改用在 PATH 之后注入，避免破坏脚本结构
-          sed -i "/export PATH/a remote_sha=\"${{ env.CURRENT_SHA }}\"\nlocal_sha=\"${{ env.CURRENT_SHA }}\"" my_install.sh
+          # 2. 彻底清除所有脚本的 BOM 字符
+          sed -i '1s/^\xEF\xBB\xBF//' my_install.sh xy_utils.sh xy_sync.sh
           
-          # 4. 修改镜像源
-          sed -i "s|ailg/g-box:hostmode|ghcr.io/${{ github.repository }}/g-box:hostmode|g" my_install.sh
+          # 3. 注入镜像地址和 SHA (改用全局替换，不插入新行，避免破坏结构)
+          # 将脚本原有的镜像名直接替换成：你的镜像名" && local_sha="你的SHA" && remote_sha="你的SHA
+          # 这样能强行接入脚本的变量链中，而不改变脚本的行数
+          MY_IMAGE="ghcr.io/${{ github.repository }}/g-box:hostmode"
+          MY_SHA="${{ env.CURRENT_SHA }}"
           
-          # 5. 【核心暴力操作】屏蔽下载逻辑
-          # 既然你已经把全套脚本放在库里了，我们让主脚本直接去 /tmp 找文件，不下载
+          sed -i "s|ailg/g-box:hostmode|$MY_IMAGE|g" my_install.sh
+          # 这里的逻辑是：在镜像变量定义的后面，强行接上我们的强制赋值
+          sed -i "s|local_sha=\$(docker inspect.*|local_sha=\"$MY_SHA\"|g" my_install.sh
+          sed -i "s|remote_sha=.*|remote_sha=\"$MY_SHA\"|g" my_install.sh
+          
+          # 4. 屏蔽下载和更新逻辑
           sed -i 's/docker pull/true #/g' my_install.sh
-          # 强制跳过脚本内部的 download_file 函数调用
+          # 屏蔽脚本开头的自动下载更新检测
           sed -i 's/if download_file/if true #/g' my_install.sh
-
-          # 6. 【全路径替换】确保脚本内部所有的下载地址都指向你的 GitHub 库
-          # 这样即便它要下载，也是下你库里那套
+          
+          # 5. 修正内部下载地址，防止它跳回官网
           sed -i "s|https://ailg.ggbond.org/|https://raw.githubusercontent.com/${{ github.repository }}/main/|g" my_install.sh
 
       - name: Commit Updated Script
@@ -71,5 +71,5 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add my_install.sh xy_utils.sh xy_sync.sh
-          git commit -m "🔄 完美缝合脚本与镜像 SHA: ${{ env.CURRENT_SHA }}" || exit 0
+          git commit -m "🔄 稳定版补丁对齐 SHA: ${{ env.CURRENT_SHA }}" || exit 0
           git push
