@@ -35,16 +35,27 @@ jobs:
           docker tag ailg/g-box:hostmode ghcr.io/${{ github.repository }}/g-box:hostmode
           docker push ghcr.io/${{ github.repository }}/g-box:hostmode
 
-      - name: Download and Prepare Scripts
+# ... 前面 Login 和 Pull 镜像部分保持不变 ...
+
+      - name: Download All Related Scripts
         run: |
-          # 建议从原作者地址下载最新脚本
+          # 抓取原作者全家桶
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
           
-          # 基础净化 (处理 BOM 头和换行符)
+          # 净化所有下载的脚本
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
           sed -i 's/\r//g' *.sh
+
+      - name: Commit and Push
+        run: |
+          git config --local user.email "github-actions@bot.com"
+          git config --local user.name "ActionBot"
+          # 确保 version.txt 和所有 .sh 都在提交列表中
+          git add version.txt *.sh
+          git commit -m "🚀 完整脚本与镜像同步: $(cat version.txt)" || exit 0
+          git push
 
       - name: Commit to GitHub
         run: |
