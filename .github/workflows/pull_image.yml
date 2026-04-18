@@ -25,15 +25,15 @@ jobs:
 
       - name: Pull and Push Image
         run: |
-          docker pull ailg/g-box:hostmode
+          docker pull ailg/g-box:260403
           # 获取拉取到的镜像真实 Digest (指纹)
-          IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ailg/g-box:hostmode | cut -d'@' -f2)
+          IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ailg/g-box:260403 | cut -d'@' -f2)
           echo "最新镜像指纹: $IMAGE_DIGEST"
           # 将指纹写入文件，供 NAS 远程对比
           echo "$IMAGE_DIGEST" > version.txt
           
-          docker tag ailg/g-box:hostmode ghcr.io/${{ github.repository }}/g-box:hostmode
-          docker push ghcr.io/${{ github.repository }}/g-box:hostmode
+          docker tag ailg/g-box:260403 ghcr.io/${{ github.repository }}/g-box:260403
+          docker push ghcr.io/${{ github.repository }}/g-box:260403
 
 # ... 前面 Login 和 Pull 镜像部分保持不变 ...
 
