@@ -39,32 +39,37 @@ jobs:
 
       - name: Download and Patch Script
         run: |
-          # 1. 下载原版主脚本和所有依赖工具脚本
+          # 1. 下载全套脚本
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
+
+          # 2. 彻底移除 BOM 并修复首行（使用 printf 确保干净）
+          printf "#!/bin/bash\n" > clean_install.sh
+          tail -n +2 my_install.sh >> clean_install.sh
+          mv clean_install.sh my_install.sh
+
+          # 3. 注入镜像地址和 SHA (在脚本开头安全位置注入)
+          # 注意：这里改用在 PATH 之后注入，避免破坏脚本结构
+          sed -i "/export PATH/a remote_sha=\"${{ env.CURRENT_SHA }}\"\nlocal_sha=\"${{ env.CURRENT_SHA }}\"" my_install.sh
           
-          # 2. 移除 BOM 隐藏字符并修复首行
-          sed -i '1s/^\xEF\xBB\xBF//' my_install.sh
-          sed -i '1c #!/bin/bash' my_install.sh
-          
-          # 3. 强制修改镜像源和注入 SHA
+          # 4. 修改镜像源
           sed -i "s|ailg/g-box:hostmode|ghcr.io/${{ github.repository }}/g-box:hostmode|g" my_install.sh
-          sed -i "2i remote_sha=\"${{ env.CURRENT_SHA }}\"" my_install.sh
-          sed -i "3i local_sha=\"${{ env.CURRENT_SHA }}\"" my_install.sh
           
-          # 4. 暴力屏蔽：直接把脚本里的 docker pull 换成 true
+          # 5. 【核心暴力操作】屏蔽下载逻辑
+          # 既然你已经把全套脚本放在库里了，我们让主脚本直接去 /tmp 找文件，不下载
           sed -i 's/docker pull/true #/g' my_install.sh
-          
-          # 5. 核心修复：修改脚本下载逻辑，让它从你的 GitHub 库下载配套脚本，而不是去原作者那下
-          # 这样能保证所有脚本都在你的控制之下，且不会报文件不存在
+          # 强制跳过脚本内部的 download_file 函数调用
+          sed -i 's/if download_file/if true #/g' my_install.sh
+
+          # 6. 【全路径替换】确保脚本内部所有的下载地址都指向你的 GitHub 库
+          # 这样即便它要下载，也是下你库里那套
           sed -i "s|https://ailg.ggbond.org/|https://raw.githubusercontent.com/${{ github.repository }}/main/|g" my_install.sh
 
       - name: Commit Updated Script
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          # 提交所有脚本：主脚本和配套工具
           git add my_install.sh xy_utils.sh xy_sync.sh
-          git commit -m "🔄 同步镜像并全套修补脚本 SHA: ${{ env.CURRENT_SHA }}" || exit 0
+          git commit -m "🔄 完美缝合脚本与镜像 SHA: ${{ env.CURRENT_SHA }}" || exit 0
           git push
