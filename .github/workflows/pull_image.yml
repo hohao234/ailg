@@ -39,28 +39,17 @@ jobs:
 
       - name: Download and Patch Script
         run: |
-          # 1. 下载全套
+          # 1. 下载全套脚本
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
 
-          # 2. 彻底清除 BOM
+          # 2. 彻底清除 BOM（这是运行成功的基石）
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
           
-          # 3. 在脚本最开头（export PATH 之后）注入“强制就位”逻辑
-          # 这行代码的作用是：只要你运行 my_install.sh，它会自动把自己身边的配套脚本复制到 /tmp
-          FIX_PATH="cp ./xy_utils.sh /tmp/xy_utils.sh 2>/dev/null; cp ./xy_sync.sh /tmp/xy_sync.sh 2>/dev/null"
-          sed -i "/export PATH/a $FIX_PATH" my_install.sh
-          
-          # 4. 注入镜像和 SHA（不换行注入，确保不破坏 line 3165 的结构）
+          # 3. 唯一的魔改：把官方镜像名替换成你的 GHCR 中转地址
           MY_IMAGE="ghcr.io/${{ github.repository }}/g-box:hostmode"
-          MY_SHA="${{ env.CURRENT_SHA }}"
           sed -i "s|ailg/g-box:hostmode|$MY_IMAGE|g" my_install.sh
-          sed -i "/export PATH/a remote_sha=\"$MY_SHA\"\nlocal_sha=\"$MY_SHA\"" my_install.sh
-          
-          # 5. 屏蔽掉脚本自带的拉取和更新检测
-          sed -i 's/docker pull/true #/g' my_install.sh
-          sed -i 's/download_file /true #/g' my_install.sh
 
       - name: Commit Updated Script
         run: |
