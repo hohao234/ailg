@@ -39,32 +39,13 @@ jobs:
 
       - name: Download and Patch Script
         run: |
-          # 1. 下载全套
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
 
-          # 2. 彻底清除 BOM
+          # 仅去 BOM 和替换镜像名，不做任何代码注入
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
-          
-          # 3. 替换镜像源
-          MY_IMAGE="ghcr.io/${{ github.repository }}/g-box:hostmode"
-          sed -i "s|ailg/g-box:hostmode|$MY_IMAGE|g" my_install.sh
-          
-          # 4. 【核心暴力手术】寻找脚本中比对 SHA 的逻辑并强制使其通过
-          # 脚本中通常有类似 if [ "$local_sha" != "$remote_sha" ] 的判断
-          # 我们直接把这个判断改成 if [ "1" == "2" ]，让它永远不成立（即永远认为镜像是一致的）
-          sed -i 's/\[ "$local_sha" != "$remote_sha" \]/\[ "1" == "2" \]/g' my_install.sh
-          sed -i 's/\[ "$local_sha" == "$remote_sha" \]/\[ "1" == "1" \]/g' my_install.sh
-          
-          # 5. 屏蔽所有的 docker pull 和代理检测函数
-          # 强制让 pull 函数返回 true
-          sed -i 's/docker pull/true #/g' my_install.sh
-          sed -i 's/check_docker_proxy/true #/g' my_install.sh
-          
-          # 6. 解决变量显示为空的问题：直接在显示位置强行写死
-          sed -i 's/remote_sha: $remote_sha/remote_sha: BYPASSED/g' my_install.sh
-          sed -i 's/local_sha: $local_sha/local_sha: BYPASSED/g' my_install.sh
+          sed -i "s|ailg/g-box:hostmode|ghcr.io/${{ github.repository }}/g-box:hostmode|g" my_install.sh
       - name: Commit Updated Script
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
