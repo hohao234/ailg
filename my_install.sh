@@ -9,6 +9,7 @@ PATH=${PATH}:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin:
 export PATH
 remote_sha="sha256:3456ba3c2174b75a1ae0f9e60392910de48fe1f029cdc27ee60317fa42f2f163"
 local_sha="sha256:3456ba3c2174b75a1ae0f9e60392910de48fe1f029cdc27ee60317fa42f2f163"
+cp ./xy_utils.sh /tmp/xy_utils.sh 2>/dev/null; cp ./xy_sync.sh /tmp/xy_sync.sh 2>/dev/null
 
 function get_emby_image() {
     local version=${1:-"4.8.10.0"}
@@ -323,7 +324,7 @@ function user_jellyfin() {
     fi
     mkdir -p $media_dir/xiaoya
     mkdir -p $media_dir/temp
-    curl -o /tmp/update_meta_jf.sh https://raw.githubusercontent.com/hjpcly1234/alig/main/update_meta_jf.sh
+    curl -o /tmp/update_meta_jf.sh https://ailg.ggbond.org/update_meta_jf.sh
     meta_select
     chmod 777 /tmp/update_meta_jf.sh
     docker run -i --security-opt seccomp=unconfined --rm --net=host -v /tmp:/tmp -v $media_dir:/media -v $config_dir:/etc/xiaoya -e LANG=C.UTF-8 ailg/ggbond:latest /tmp/update_meta_jf.sh
@@ -1475,7 +1476,7 @@ mount_img() {
     search_img="emby/embyserver|amilys/embyserver|nyanmisaka/jellyfin|jellyfin/jellyfin"
     check_qnap
     get_emby_status > /dev/null
-    curl -sSLf -o /usr/bin/mount_ailg "https://raw.githubusercontent.com/hjpcly1234/alig/main/mount_ailg"
+    curl -sSLf -o /usr/bin/mount_ailg "https://ailg.ggbond.org/mount_ailg"
     if [ ! -f /usr/bin/mount_ailg ]; then
         docker cp g-box:/var/lib/mount_ailg "/usr/bin/mount_ailg"
     fi
@@ -1703,7 +1704,7 @@ auto_mount_ailg() {
                 chmod +x "${config_dir}/mount_ailg"
                 INFO "已从 g-box 容器复制 mount_ailg 脚本到配置目录"
             else
-                if curl -sSLf -o "${config_dir}/mount_ailg" "https://raw.githubusercontent.com/hjpcly1234/alig/main/mount_ailg" 2>/dev/null; then
+                if curl -sSLf -o "${config_dir}/mount_ailg" "https://ailg.ggbond.org/mount_ailg" 2>/dev/null; then
                     chmod +x "${config_dir}/mount_ailg"
                     INFO "已从远程获取 mount_ailg 脚本到配置目录"
                 else
@@ -2383,7 +2384,7 @@ sync_config() {
         echo -e "\033[1;31m同步进行中，需要较长时间，请耐心等待，直到出命令行提示符才算结束！\033[0m"
         [ -f "/tmp/sync_emby_config_ailg.sh" ] && rm -f /tmp/sync_emby_config_ailg.sh
         for i in {1..3}; do
-            curl -sSfL -o /tmp/sync_emby_config_ailg.sh https://raw.githubusercontent.com/hjpcly1234/alig/main/sync_emby_config_img_ailg.sh
+            curl -sSfL -o /tmp/sync_emby_config_ailg.sh https://ailg.ggbond.org/sync_emby_config_img_ailg.sh
             grep -q "返回错误" /tmp/sync_emby_config_ailg.sh && break
         done
         grep -q "返回错误" /tmp/sync_emby_config_ailg.sh || {
@@ -2633,7 +2634,7 @@ download_legacy_run_file() {
         fi
         
         for i in {1..3}; do
-            if curl -sSLf -o "$legacy_img_dir/run_jf" https://raw.githubusercontent.com/hjpcly1234/alig/main/run_jf_v3; then
+            if curl -sSLf -o "$legacy_img_dir/run_jf" https://ailg.ggbond.org/run_jf_v3; then
                 chmod +x "$legacy_img_dir/run_jf"
                 INFO "新版run_jf文件下载成功"
                 break
@@ -2652,7 +2653,7 @@ download_legacy_run_file() {
         fi
         
         for i in {1..3}; do
-            if curl -sSLf -o "$legacy_img_dir/run" https://raw.githubusercontent.com/hjpcly1234/alig/main/run_v4; then
+            if curl -sSLf -o "$legacy_img_dir/run" https://ailg.ggbond.org/run_v4; then
                 chmod +x "$legacy_img_dir/run"
                 INFO "新版run文件下载成功"
                 break
@@ -3026,7 +3027,7 @@ function add_player() {
     fi
 
     for i in {1..3}; do
-        curl -sSLf https://raw.githubusercontent.com/hjpcly1234/alig/main/externalPlayer.js -o "/tmp/externalPlayer.js"
+        curl -sSLf https://ailg.ggbond.org/externalPlayer.js -o "/tmp/externalPlayer.js"
         if [ -f "/tmp/externalPlayer.js" ]; then
             if grep -q "embyPot" "/tmp/externalPlayer.js"; then
                 break
@@ -3215,7 +3216,7 @@ function sync_plan() {
         3)
             docker_name="$(docker ps -a | grep -E 'ailg/g-box' | awk '{print $NF}' | head -n1)"
             if [ -n "${docker_name}" ]; then
-                /bin/bash -c "$(curl -sSLf https://raw.githubusercontent.com/hjpcly1234/alig/main/xy_install.sh)" -s g-box
+                /bin/bash -c "$(curl -sSLf https://ailg.ggbond.org/xy_install.sh)" -s g-box
             else
                 ERROR "未找到G-Box容器，请先安装G-Box！"
             fi
@@ -3259,7 +3260,7 @@ function sync_plan() {
     [ -z "${config_dir}" ] && ERROR "未找到${docker_name}的挂载目录，请检查！" && exit 1
     if command -v crontab >/dev/null 2>&1; then
         crontab -l | grep -v xy_install > /tmp/cronjob.tmp
-        echo "$minu $hour */${sync_day} * * /bin/bash -c \"\$(curl -sSLf https://raw.githubusercontent.com/hjpcly1234/alig/main/xy_install.sh)\" -s g-box | tee ${config_dir}/cron.log" >> /tmp/cronjob.tmp
+        echo "$minu $hour */${sync_day} * * /bin/bash -c \"\$(curl -sSLf https://ailg.ggbond.org/xy_install.sh)\" -s g-box | tee ${config_dir}/cron.log" >> /tmp/cronjob.tmp
         crontab /tmp/cronjob.tmp
         chmod 777 ${config_dir}/cron.log
         echo -e "\n"
@@ -3277,7 +3278,7 @@ function sync_plan() {
         echo -e "\033[1;35m已创建/etc/crontab.bak备份文件！\033[0m"
         
         sed -i '/xy_install/d' /etc/crontab
-        echo "$minu $hour */${sync_day} * * root /bin/bash -c \"\$(curl -sSLf https://raw.githubusercontent.com/hjpcly1234/alig/main/xy_install.sh)\" -s g-box | tee ${config_dir}/cron.log" >> /etc/crontab
+        echo "$minu $hour */${sync_day} * * root /bin/bash -c \"\$(curl -sSLf https://ailg.ggbond.org/xy_install.sh)\" -s g-box | tee ${config_dir}/cron.log" >> /etc/crontab
         chmod 777 ${config_dir}/cron.log
         echo -e "\n"
         echo -e "———————————————————————————————————— \033[1;33mA  I  老  G\033[0m —————————————————————————————————"
@@ -3564,7 +3565,7 @@ function user_gbox() {
         INFO "已设置不使用内置的sun-panel导航"
     fi
 
-    if curl -sSLf -o /tmp/share_resources.sh https://raw.githubusercontent.com/hjpcly1234/alig/main/share_resources.sh &> /dev/null; then
+    if curl -sSLf -o /tmp/share_resources.sh https://ailg.ggbond.org/share_resources.sh &> /dev/null; then
         source /tmp/share_resources.sh
         select_share_resources "$config_dir"
         rm -f /tmp/share_resources.sh
@@ -3725,7 +3726,7 @@ update_data() {
     INFO "正在更新小雅的data文件……"
     docker_name="$(docker ps -a | grep -E 'ailg/g-box' | awk '{print $NF}' | head -n1)"
     if [ -n "${docker_name}" ]; then
-        local url_base="https://raw.githubusercontent.com/hjpcly1234/alig/main/"
+        local url_base="https://ailg.ggbond.org/"
         local files=("version.txt" "index.zip" "update.zip" "tvbox.zip" "strm.zip")
         local download_dir="/www/data"
 
@@ -3808,7 +3809,7 @@ temp_gbox() {
         fi  
     else
         for i in {1..3}; do
-            gb_version=$(curl -sSLf https://raw.githubusercontent.com/hjpcly1234/alig/main/GB_version)
+            gb_version=$(curl -sSLf https://ailg.ggbond.org/GB_version)
         if [[ "${gb_version}" =~ ^GB\.([0-9]{6})\.[0-9]{4}$ ]]; then
             gb_version_tag="${BASH_REMATCH[1]}"
             break
@@ -4054,7 +4055,7 @@ logo() {
 \033[1;32m———————————————————————————————————————————————————————————————————————————————————\033[0m
 # Copyright (c) 2025 AI老G <\033[1;36mhttps://space.bilibili.com/252166818\033[0m>
 # 作者很菜，无法经常更新，不保证适用每个人的环境，请勿用于商业用途；
-# 如果您喜欢这个脚本，可以请我喝咖啡：\033[1;36mhttps://raw.githubusercontent.com/hjpcly1234/alig/main/3q.jpg\033[0m
+# 如果您喜欢这个脚本，可以请我喝咖啡：\033[1;36mhttps://ailg.ggbond.org/3q.jpg\033[0m
 LOGO
 }
 
