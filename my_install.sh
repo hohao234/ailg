@@ -7,8 +7,6 @@ source /tmp/xy_sync.sh
 
 PATH=${PATH}:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin:/opt/homebrew/bin
 export PATH
-remote_sha="sha256:3456ba3c2174b75a1ae0f9e60392910de48fe1f029cdc27ee60317fa42f2f163"
-local_sha="sha256:3456ba3c2174b75a1ae0f9e60392910de48fe1f029cdc27ee60317fa42f2f163"
 
 function get_emby_image() {
     local version=${1:-"4.8.10.0"}
