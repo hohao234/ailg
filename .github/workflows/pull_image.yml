@@ -1,8 +1,8 @@
-name: Sync to GHCR and Update Script
+name: Sync to GHCR and Patch
 
 on:
   schedule:
-    - cron: '0 */2 * * *' # 每6小时同步一次
+    - cron: '0 */3 * * *' # 每6小时自动运行
   workflow_dispatch:      # 支持手动触发
 
 jobs:
@@ -25,31 +25,24 @@ jobs:
 
       - name: Pull and Push Image
         run: |
-          # 1. 拉取原版
           docker pull ailg/g-box:hostmode
-          
-          # 2. 获取唯一 ID (SHA)
-          IMAGE_ID=$(docker inspect --format='{{index .Id}}' ailg/g-box:hostmode)
-          echo "CURRENT_SHA=$IMAGE_ID" >> $GITHUB_ENV
-          
-          # 3. 显式指定镜像名为 g-box
-          # 完整路径: ghcr.io/hjpcly1234/alig/g-box:hostmode
           docker tag ailg/g-box:hostmode ghcr.io/${{ github.repository }}/g-box:hostmode
           docker push ghcr.io/${{ github.repository }}/g-box:hostmode
 
-      - name: Download and Patch Script
+      - name: Download and Prepare Scripts
         run: |
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
-
-          # 仅去 BOM 和替换镜像名，不做任何代码注入
+          
+          # 基础净化
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
-          sed -i "s|ailg/g-box:hostmode|ghcr.io/${{ github.repository }}/g-box:hostmode|g" my_install.sh
-      - name: Commit Updated Script
+          sed -i 's/\r//g' *.sh
+
+      - name: Commit to GitHub
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add my_install.sh xy_utils.sh xy_sync.sh
-          git commit -m "🚀 修复路径指向与 SHA 对齐" || exit 0
+          git add *.sh
+          git commit -m "🚀 同步镜像并更新脚本资源" || exit 0
           git push
