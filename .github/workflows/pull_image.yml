@@ -44,26 +44,25 @@ jobs:
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
 
-          # 2. 彻底清除所有脚本的 BOM 字符
-          sed -i '1s/^\xEF\xBB\xBF//' my_install.sh xy_utils.sh xy_sync.sh
+          # 2. 彻底清除 BOM（使用一种更鲁棒的方式）
+          sed -i '1s/^\xEF\xBB\xBF//' *.sh
           
-          # 3. 注入镜像地址和 SHA (改用全局替换，不插入新行，避免破坏结构)
-          # 将脚本原有的镜像名直接替换成：你的镜像名" && local_sha="你的SHA" && remote_sha="你的SHA
-          # 这样能强行接入脚本的变量链中，而不改变脚本的行数
+          # 3. 注入镜像地址和强制 SHA
           MY_IMAGE="ghcr.io/${{ github.repository }}/g-box:hostmode"
           MY_SHA="${{ env.CURRENT_SHA }}"
           
+          # 直接修改脚本内部的镜像定义
           sed -i "s|ailg/g-box:hostmode|$MY_IMAGE|g" my_install.sh
-          # 这里的逻辑是：在镜像变量定义的后面，强行接上我们的强制赋值
-          sed -i "s|local_sha=\$(docker inspect.*|local_sha=\"$MY_SHA\"|g" my_install.sh
-          sed -i "s|remote_sha=.*|remote_sha=\"$MY_SHA\"|g" my_install.sh
           
-          # 4. 屏蔽下载和更新逻辑
+          # 【核心改进】不再在中间插入代码，而是在脚本的前几行注入“锁死”变量
+          # 我们把变量注入在 PATH 定义的后面，那是脚本最安全的地方
+          sed -i "/export PATH/a remote_sha=\"$MY_SHA\"\nlocal_sha=\"$MY_SHA\"" my_install.sh
+          
+          # 4. 屏蔽脚本自带的下载/更新逻辑
           sed -i 's/docker pull/true #/g' my_install.sh
-          # 屏蔽脚本开头的自动下载更新检测
-          sed -i 's/if download_file/if true #/g' my_install.sh
+          sed -i 's/download_file /true #/g' my_install.sh
           
-          # 5. 修正内部下载地址，防止它跳回官网
+          # 5. 替换下载源为你的库
           sed -i "s|https://ailg.ggbond.org/|https://raw.githubusercontent.com/${{ github.repository }}/main/|g" my_install.sh
 
       - name: Commit Updated Script
@@ -71,5 +70,5 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add my_install.sh xy_utils.sh xy_sync.sh
-          git commit -m "🔄 稳定版补丁对齐 SHA: ${{ env.CURRENT_SHA }}" || exit 0
+          git commit -m "✅ 结构保护版补丁 SHA: ${{ env.CURRENT_SHA }}" || exit 0
           git push
