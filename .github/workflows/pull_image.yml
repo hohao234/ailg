@@ -56,12 +56,3 @@ jobs:
           git add version.txt *.sh
           git commit -m "🚀 完整脚本与镜像同步: $(cat version.txt)" || exit 0
           git push
-
-      - name: Commit to GitHub
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          # 将脚本和版本指纹文件一并提交
-          git add *.sh version.txt
-          git commit -m "🚀 同步镜像指纹: $(cat version.txt)" || exit 0
-          git push
