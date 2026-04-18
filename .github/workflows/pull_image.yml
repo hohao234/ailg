@@ -1,26 +1,62 @@
-name: Docker Image Downloader
+name: Sync to GHCR and Update Script
 
 on:
-  workflow_dispatch: # 支持手动点击运行
+  schedule:
+    - cron: '0 */6 * * *' # 每6小时自动检查一次更新
+  workflow_dispatch:      # 支持手动触发
 
 jobs:
-  build:
+  sync-and-patch:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
     steps:
-      - name: Pull Docker Image
-        run: |
-          docker pull ailg/g-box:hostmode
-          # 将镜像保存为 tar 文件
-          docker save ailg/g-box:hostmode -o g-box-hostmode.tar
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Compress Image
-        run: |
-          # 压缩一下，减小体积，加快下载速度
-          gzip g-box-hostmode.tar
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          name: g-box-image-amd64
-          path: g-box-hostmode.tar.gz
-          retention-days: 1 # 节省空间，只保留1天
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and Push Image
+        run: |
+          # 1. 拉取官方原版
+          docker pull ailg/g-box:hostmode
+          
+          # 2. 获取该镜像最真实的本地 SHA (ID)
+          IMAGE_ID=$(docker inspect --format='{{index .Id}}' ailg/g-box:hostmode)
+          echo "CURRENT_SHA=$IMAGE_ID" >> $GITHUB_ENV
+          
+          # 3. 推送到你自己的 GHCR (无需保存为 tar，直接转存)
+          # 镜像地址将变为: ghcr.io/${{ github.repository }}:hostmode
+          docker tag ailg/g-box:hostmode ghcr.io/${{ github.repository }}:hostmode
+          docker push ghcr.io/${{ github.repository }}:hostmode
+
+      - name: Download and Patch Script
+        run: |
+          # 4. 下载原版安装脚本
+          curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
+          
+          # 5. 暴力修改：替换镜像源为你自己的 GHCR，并注入匹配的 SHA
+          # 替换镜像名称
+          sed -i "s|ailg/g-box:hostmode|ghcr.io/${{ github.repository }}:hostmode|g" my_install.sh
+          
+          # 注入 SHA 变量，强制让 local_sha 等于我们同步的这个值
+          sed -i "2i remote_sha=\"${{ env.CURRENT_SHA }}\"" my_install.sh
+          sed -i "3i local_sha=\"${{ env.CURRENT_SHA }}\"" my_install.sh
+          
+          # 注释掉脚本里自带的 pull 逻辑（因为我们会手动处理或让它直接通过检测）
+          sed -i 's/docker pull/echo skip pull #/g' my_install.sh
+
+      - name: Commit Updated Script
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add my_install.sh
+          git commit -m "🔄 同步镜像并更新 SHA: ${{ env.CURRENT_SHA }}" || exit 0
+          git push
