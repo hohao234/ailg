@@ -39,17 +39,24 @@ jobs:
 
       - name: Download and Patch Script
         run: |
-          # 1. 下载全套脚本
+          # 1. 下载
           curl -sL https://ailg.ggbond.org/xy_ailg.sh -o my_install.sh
           curl -sL https://ailg.ggbond.org/xy_utils.sh -o xy_utils.sh
           curl -sL https://ailg.ggbond.org/xy_sync.sh -o xy_sync.sh
 
-          # 2. 彻底清除 BOM（这是运行成功的基石）
+          # 2. 去 BOM
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
           
-          # 3. 唯一的魔改：把官方镜像名替换成你的 GHCR 中转地址
+          # 3. 替换镜像名为你的 GHCR
           MY_IMAGE="ghcr.io/${{ github.repository }}/g-box:hostmode"
           sed -i "s|ailg/g-box:hostmode|$MY_IMAGE|g" my_install.sh
+          
+          # 4. 【核心手术】强行让脚本认为本地镜像就是最新的
+          # 无论 local_sha 和 remote_sha 是什么，都让它们相等
+          sed -i '/local_sha=$(docker inspect/c\    local_sha="equal"; remote_sha="equal"' my_install.sh
+          
+          # 5. 屏蔽掉所有 docker pull 相关的逻辑，防止它去连接代理点
+          sed -i 's/docker pull/true #/g' my_install.sh
 
       - name: Commit Updated Script
         run: |
