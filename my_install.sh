@@ -1006,7 +1006,7 @@ ailg_uninstall() {
             break
             ;;
         2)
-            general_uninstall "ghcr.io/hjpcly1234/alig:hostmode"
+            general_uninstall "ghcr.io/hjpcly1234/alig/g-box:hostmode"
             break
             ;;
         3)
@@ -1047,7 +1047,7 @@ ailg_uninstall() {
 }
 
 sp_uninstall() {
-    container=$(docker ps -a --filter "ancestor=ghcr.io/hjpcly1234/alig:hostmode" --format "{{.ID}}")
+    container=$(docker ps -a --filter "ancestor=ghcr.io/hjpcly1234/alig/g-box:hostmode" --format "{{.ID}}")
     if [ -n "$container" ]; then
         host_dir=$(docker inspect --format='{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' $container)       
         if [ -n "$host_dir" ]; then
@@ -2894,7 +2894,7 @@ function docker_image_download() {
         clear
         echo -e "\n"
         echo -e "———————————————————————————————————— \033[1;33mA  I  老  G\033[0m —————————————————————————————————"
-        echo -e "\033[1;35m1、G-Box镜像最新版 (ghcr.io/hjpcly1234/alig:hostmode)\033[0m"
+        echo -e "\033[1;35m1、G-Box镜像最新版 (ghcr.io/hjpcly1234/alig/g-box:hostmode)\033[0m"
         echo -e "\033[1;35m2、GGBond镜像最新版 (ailg/ggbond:latest)\033[0m"
         echo -e "\033[1;35m3、Emby官方镜像 4.8.9.0\033[0m"
         echo -e "\033[1;35m4、Emby官方镜像 4.9.0.38\033[0m"
@@ -3197,7 +3197,7 @@ function sync_plan() {
                 ERROR "未找到G-Box容器，请先安装G-Box再设置！"
                 exit 1
             fi
-            image_name="ghcr.io/hjpcly1234/alig:hostmode"
+            image_name="ghcr.io/hjpcly1234/alig/g-box:hostmode"
             break
             ;;
         2)
@@ -3352,7 +3352,7 @@ check_version_and_backup() {
 function user_gbox() {
     WARN "安装g-box会卸载已安装的G-Box和小雅tv-box以避免端口冲突！"
     read -erp "请选择：（确认按Y/y，否则按任意键返回！）" re_setup
-    _update_img="ghcr.io/hjpcly1234/alig:hostmode"
+    _update_img="ghcr.io/hjpcly1234/alig/g-box:hostmode"
     if [[ $re_setup == [Yy] ]]; then
         image_keywords=("ailg/alist" "xiaoyaliu/alist" "ailg/g-box" "haroldli/xiaoya-tvbox")
         for keyword in "${image_keywords[@]}"; do
@@ -3576,7 +3576,7 @@ function user_gbox() {
         -v "$config_dir/data":/www/data \
         --restart=always \
         $extra_volumes \
-        ghcr.io/hjpcly1234/alig:hostmode
+        ghcr.io/hjpcly1234/alig/g-box:hostmode
 
     if command -v ip &> /dev/null; then
         localip=$(ip route get 223.5.5.5 2>/dev/null | grep -oE 'src [0-9.]+' | grep -oE '[0-9.]+' | head -1)
@@ -3697,7 +3697,7 @@ fuck_docker() {
 
 update_gbox() {
     INFO "正在更新G-Box容器……"
-    image_name="ghcr.io/hjpcly1234/alig:hostmode"
+    image_name="ghcr.io/hjpcly1234/alig/g-box:hostmode"
     docker_name="$(docker ps -a | grep -E 'ailg/g-box' | awk '{print $NF}' | head -n1)"
     if [ -z "${docker_name}" ]; then
         WARN "您未安装G-Box容器，是否立即安装？（Y/N）  " && read -r -n 1 get_install
@@ -3834,11 +3834,11 @@ temp_gbox() {
     fi
 
     docker rm -f ${docker_name}
-    docker rmi ghcr.io/hjpcly1234/alig:hostmode
+    docker rmi ghcr.io/hjpcly1234/alig/g-box:hostmode
     INFO "正在为您拉取G-Box临时镜像……"
     if docker_pull "ailg/g-box:${gb_version_tag}" &> /dev/null; then
         INFO "G-Box镜像更新成功，正在为您安装/更新G-Box容器……"
-        docker tag "ailg/g-box:${gb_version_tag}" ghcr.io/hjpcly1234/alig:hostmode
+        docker tag "ailg/g-box:${gb_version_tag}" ghcr.io/hjpcly1234/alig/g-box:hostmode
     else
         ERROR "G-Box镜像更新失败，程序退出！"
         exit 1
@@ -3850,13 +3850,13 @@ temp_gbox() {
             -v "$config_dir/data":/www/data \
             -v /var/run/docker.sock:/var/run/docker.sock \
             --restart=always \
-            ghcr.io/hjpcly1234/alig:hostmode
+            ghcr.io/hjpcly1234/alig/g-box:hostmode
     else
         docker run -d --name="${docker_name}" --net=host \
             -v "$config_dir":/data \
             -v "$config_dir/data":/www/data \
             --restart=always \
-            ghcr.io/hjpcly1234/alig:hostmode
+            ghcr.io/hjpcly1234/alig/g-box:hostmode
     fi
 
     [ $? -eq 0 ] && INFO "G-Box容器用临时镜像成功安装/更新，但下次重启仍会更新标准版镜像，可关闭重启自动更新功能，确认网络可正常更新后再打开！" || ERROR "G-Box容器安装/更新失败，程序退出！"
