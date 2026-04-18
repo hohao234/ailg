@@ -7,9 +7,6 @@ source /tmp/xy_sync.sh
 
 PATH=${PATH}:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin:/opt/homebrew/bin
 export PATH
-remote_sha="sha256:3456ba3c2174b75a1ae0f9e60392910de48fe1f029cdc27ee60317fa42f2f163"
-local_sha="sha256:3456ba3c2174b75a1ae0f9e60392910de48fe1f029cdc27ee60317fa42f2f163"
-cp ./xy_utils.sh /tmp/xy_utils.sh 2>/dev/null; cp ./xy_sync.sh /tmp/xy_sync.sh 2>/dev/null
 
 function get_emby_image() {
     local version=${1:-"4.8.10.0"}
@@ -3161,7 +3158,7 @@ fix_docker() {
     fi
 
     docker rmi hello-world:latest >/dev/null 2>&1
-    if true # hello-world; then
+    if docker pull hello-world; then
         echo -e "\033[1;32mNice！Docker下载测试成功，配置更新完成！\033[0m"
     else
         echo -e "\033[1;31m哎哟！Docker测试下载失败，恢复原配置文件...\033[0m"
@@ -3651,7 +3648,7 @@ choose_mirrors() {
                 )
                 total_delay=$(echo "$total_delay + $output" | awk '{print $1 + $3}')
             done
-            if $success && true # "${mirrors[$i]}/library/hello-world:latest" &> /dev/null; then
+            if $success && docker pull "${mirrors[$i]}/library/hello-world:latest" &> /dev/null; then
                 INFO "${mirrors[i]}代理可用，测试完成！"
                 mirror_total_delays+=("${mirrors[$i]}:$total_delay")
                 docker rmi "${mirrors[$i]}/library/hello-world:latest" &> /dev/null
