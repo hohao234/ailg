@@ -1,12 +1,12 @@
-name: Sync to GHCR and Patch
+name: Smart Sync to GHCR
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # 每 3 小时自动运行一次
+    - cron: '0 */3 * * *' # 每 3 小时运行一次
   workflow_dispatch:      # 支持手动触发
 
 jobs:
-  sync-and-patch:
+  check-and-sync:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -16,30 +16,48 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Pre-check Docker Hub Image Digest
+        id: check
+        run: |
+          # 1. 获取远程镜像的 Digest (指纹)
+          # 使用 API 获取 ailg/g-box:260403 的详细信息
+          REMOTE_DIGEST=$(curl -s https://hub.docker.com/v2/repositories/ailg/g-box/tags/260403 | jq -r '.digest')
+          
+          # 2. 读取本地记录的指纹
+          LOCAL_DIGEST=$(cat version.txt 2>/dev/null || echo "none")
+          
+          echo "远程指纹: $REMOTE_DIGEST"
+          echo "本地指纹: $LOCAL_DIGEST"
+          
+          # 3. 对比指纹
+          if [ "$REMOTE_DIGEST" == "$LOCAL_DIGEST" ] && [ "$REMOTE_DIGEST" != "null" ]; then
+            echo "✅ 镜像未更新，跳过同步。"
+            echo "sync_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "🚀 检测到镜像更新或本地记录失效！"
+            echo "$REMOTE_DIGEST" > version.txt
+            echo "sync_needed=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Login to GHCR
+        if: steps.check.outputs.sync_needed == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull and Push Image
+      - name: Pull, Tag and Push Image
+        if: steps.check.outputs.sync_needed == 'true'
         run: |
+          # 只有在需要同步时才拉取镜像
           docker pull ailg/g-box:260403
-          # 获取拉取到的镜像真实 Digest (指纹)
-          IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ailg/g-box:260403 | cut -d'@' -f2)
-          echo "最新镜像指纹: $IMAGE_DIGEST"
-          # 将指纹写入文件，供 NAS 远程对比
-          echo "$IMAGE_DIGEST" > version.txt
-          
           docker tag ailg/g-box:260403 ghcr.io/${{ github.repository }}/g-box:260403
           docker push ghcr.io/${{ github.repository }}/g-box:260403
 
-# ... 前面 Login 和 Pull 镜像部分保持不变 ...
-
-      - name: Download All Related Scripts
+      - name: Download Related Scripts
+        if: steps.check.outputs.sync_needed == 'true'
         run: |
-          # 定义下载地址（如果这个地址失效，请替换为作者最新的有效地址）
           BASE_URL="https://ailg.ggbond.org"
           
           curl -sL ${BASE_URL}/xy_ailg.sh -o xy_ailg.sh
@@ -47,19 +65,21 @@ jobs:
           curl -sL ${BASE_URL}/xy_sync.sh -o xy_sync.sh
           curl -sL ${BASE_URL}/sun-panel.tar.gz -o sun-panel.tar.gz
           
-          # 检查文件内容是否包含 404 或 html 标签
+          # 简单校验下载的文件
           if grep -q "<!DOCTYPE html>" xy_ailg.sh || [ ! -s xy_ailg.sh ]; then
-            echo "❌ 下载失败：获取到的是错误页面或空文件"
+            echo "❌ 脚本下载失败，可能是 URL 已变动"
             exit 1
           fi
           
+          # 修正格式问题
           sed -i '1s/^\xEF\xBB\xBF//' *.sh
           sed -i 's/\r//g' *.sh
 
-      - name: Commit and Push
+      - name: Commit and Push Changes
+        if: steps.check.outputs.sync_needed == 'true'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "ActionBot"
           git add .
-          git commit -m "🚀 全量同步资源: $(date)" || exit 0
+          git commit -m "🚀 自动同步更新: 镜像及资源包 $(date)" || exit 0
           git push
