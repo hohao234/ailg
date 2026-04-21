@@ -1,85 +1,39 @@
-name: Smart Sync to GHCR
-
-on:
-  schedule:
-    - cron: '0 */3 * * *' # 每 3 小时运行一次
-  workflow_dispatch:      # 支持手动触发
-
-jobs:
-  check-and-sync:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Pre-check Docker Hub Image Digest
+- name: Pre-check Hostmode Update
         id: check
         run: |
-          # 1. 获取远程镜像的 Digest (指纹)
-          # 使用 API 获取 ailg/g-box:260403 的详细信息
-          REMOTE_DIGEST=$(curl -s https://hub.docker.com/v2/repositories/ailg/g-box/tags/260403 | jq -r '.digest')
+          # 1. 直接监控 hostmode 的最新指纹
+          # 这样无论作者把 hostmode 指向 260421 还是 260422，脚本都能发现内容变了
+          API_URL="https://hub.docker.com/v2/repositories/ailg/g-box/tags/hostmode"
+          REMOTE_DIGEST=$(curl -s "$API_URL" | jq -r '.digest')
           
-          # 2. 读取本地记录的指纹
+          # 2. 读取本地记录（version.txt）
           LOCAL_DIGEST=$(cat version.txt 2>/dev/null || echo "none")
           
-          echo "远程指纹: $REMOTE_DIGEST"
-          echo "本地指纹: $LOCAL_DIGEST"
+          echo "远程 Hostmode 指纹: $REMOTE_DIGEST"
+          echo "本地已同步指纹: $LOCAL_DIGEST"
           
-          # 3. 对比指纹
-          if [ "$REMOTE_DIGEST" == "$LOCAL_DIGEST" ] && [ "$REMOTE_DIGEST" != "null" ]; then
-            echo "✅ 镜像未更新，跳过同步。"
+          # 3. 对比逻辑
+          if [ "$REMOTE_DIGEST" == "null" ] || [ -z "$REMOTE_DIGEST" ]; then
+            echo "❌ 无法获取远程镜像信息，跳过本次同步。"
+            echo "sync_needed=false" >> $GITHUB_OUTPUT
+          elif [ "$REMOTE_DIGEST" == "$LOCAL_DIGEST" ]; then
+            echo "✅ 镜像指纹未变（作者没更新），跳过。"
             echo "sync_needed=false" >> $GITHUB_OUTPUT
           else
-            echo "🚀 检测到镜像更新或本地记录失效！"
+            echo "🚀 检测到 Hostmode 指向了新镜像！准备同步..."
             echo "$REMOTE_DIGEST" > version.txt
             echo "sync_needed=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Login to GHCR
-        if: steps.check.outputs.sync_needed == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull, Tag and Push Image
+      - name: Pull and Sync to GHCR
         if: steps.check.outputs.sync_needed == 'true'
         run: |
-          # 只有在需要同步时才拉取镜像
-          docker pull ailg/g-box:260403
-          docker tag ailg/g-box:260403 ghcr.io/${{ github.repository }}/g-box:260403
-          docker push ghcr.io/${{ github.repository }}/g-box:260403
-
-      - name: Download Related Scripts
-        if: steps.check.outputs.sync_needed == 'true'
-        run: |
-          BASE_URL="https://ailg.ggbond.org"
+          # 4. 直接拉取 hostmode 即可，它代表了作者当前的最新稳定版
+          docker pull ailg/g-box:hostmode
           
-          curl -sL ${BASE_URL}/xy_ailg.sh -o xy_ailg.sh
-          curl -sL ${BASE_URL}/xy_utils.sh -o xy_utils.sh
-          curl -sL ${BASE_URL}/xy_sync.sh -o xy_sync.sh
-          curl -sL ${BASE_URL}/sun-panel.tar.gz -o sun-panel.tar.gz
+          # 打上你自己的 GHCR 标签
+          # 这样你在 NAS 上只需要拉取 ghcr.io/${{ github.repository }}/g-box:hostmode
+          docker tag ailg/g-box:hostmode ghcr.io/${{ github.repository }}/g-box:hostmode
           
-          # 简单校验下载的文件
-          if grep -q "<!DOCTYPE html>" xy_ailg.sh || [ ! -s xy_ailg.sh ]; then
-            echo "❌ 脚本下载失败，可能是 URL 已变动"
-            exit 1
-          fi
-          
-          # 修正格式问题
-          sed -i '1s/^\xEF\xBB\xBF//' *.sh
-          sed -i 's/\r//g' *.sh
-
-      - name: Commit and Push Changes
-        if: steps.check.outputs.sync_needed == 'true'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "ActionBot"
-          git add .
-          git commit -m "🚀 自动同步更新: 镜像及资源包 $(date)" || exit 0
-          git push
+          # 推送到你自己的私有/公有仓库
+          docker push ghcr.io/${{ github.repository }}/g-box:hostmode
